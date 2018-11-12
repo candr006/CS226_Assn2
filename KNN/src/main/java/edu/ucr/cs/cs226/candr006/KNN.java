@@ -38,13 +38,13 @@ public class KNN
             extends Mapper<Object, Text, DoubleWritable,Text>{
         private Text word = new Text();
 
-        public void map(Object key, DoubleWritable value, Context context
+        public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 word.set(itr.nextToken());
                 String[] words =word.toString().split(",");
-                Text key2= new Text(words[1]+','+words[2]);
+                Text val= new Text(words[1]+','+words[2]);
 
 
                 //calculate the distance between this point and q
@@ -60,13 +60,13 @@ public class KNN
                 double d=Math.sqrt(Math.pow((x2-x1),2)+Math.pow((y2-y1),2));
                 final DoubleWritable dist = new DoubleWritable(d);
 
-                context.write(dist,key2);
+                context.write(dist,val);
             }
         }
     }
 
     public static class KNNReducer
-            extends Reducer<Text,IntWritable,DoubleWritable,Text> {
+            extends Reducer<DoubleWritable,Text,DoubleWritable,Text> {
         private DoubleWritable result = new DoubleWritable();
 
         public void reduce(Text key, Iterable<DoubleWritable> values,
@@ -133,10 +133,10 @@ public class KNN
         job.setMapperClass(KNNMapper.class);
         job.setCombinerClass(KNNReducer.class);
         job.setReducerClass(KNNReducer.class);
-        job.setOutputKeyClass(DoubleWritable.class);
-        job.setOutputValueClass(Text.class);
         job.setMapOutputKeyClass(DoubleWritable.class);
         job.setMapOutputValueClass(Text.class);
+        job.setOutputKeyClass(DoubleWritable.class);
+        job.setOutputValueClass(Text.class);
         FileInputFormat.addInputPath(job, new Path("local_copy.csv"));
         FileOutputFormat.setOutputPath(job, new Path("KNN_output.txt"));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
