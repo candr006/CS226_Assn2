@@ -73,7 +73,7 @@ public class KNN
     }
 
 
-    public static void main( String[] args ) throws IOException {
+    public static void main( String[] args ) throws IOException, ClassNotFoundException, InterruptedException {
         //check that all arguments are there
         /*if(args.length<3){
             System.out.println("\n\nERROR: You are missing one or more arguments.");
@@ -101,5 +101,17 @@ public class KNN
         }
         ostream4.close();
         inputStream4.close();
+
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf, "knn");
+        job.setJarByClass(KNN.class);
+        job.setMapperClass(KNNMapper.class);
+        job.setCombinerClass(KNNReducer.class);
+        job.setReducerClass(KNNReducer.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+        FileInputFormat.addInputPath(job, new Path("local_copy.csv"));
+        FileOutputFormat.setOutputPath(job, new Path("KNN_output.txt"));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
