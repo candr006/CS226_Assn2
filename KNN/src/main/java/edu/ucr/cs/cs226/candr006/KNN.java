@@ -33,11 +33,12 @@ import static java.lang.Math.*;
 
 public class KNN
 {
+    public static int k =0;
     public static class KNNMapper
-            extends Mapper<Object, Text, Text, DoubleWritable>{
+            extends Mapper<Object, Text, DoubleWritable,Text>{
         private Text word = new Text();
 
-        public void map(Object key, Text value, Context context
+        public void map(Object key, DoubleWritable value, Context context
         ) throws IOException, InterruptedException {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
@@ -59,38 +60,47 @@ public class KNN
                 double d=Math.sqrt(Math.pow((x2-x1),2)+Math.pow((y2-y1),2));
                 final DoubleWritable dist = new DoubleWritable(d);
 
-                context.write(key2, dist);
+                context.write(dist,key2);
             }
         }
     }
 
     public static class KNNReducer
-            extends Reducer<Text,IntWritable,Text,DoubleWritable> {
+            extends Reducer<Text,IntWritable,DoubleWritable,Text> {
         private DoubleWritable result = new DoubleWritable();
 
         public void reduce(Text key, Iterable<DoubleWritable> values,
                            Context context
         ) throws IOException, InterruptedException {
             int sum = 0;
+
             for (DoubleWritable val : values) {
                 sum += val.get();
             }
             result.set(sum);
-            context.write(key, result);
+            if(getK()>=1) {
+                context.write(result, key);
+            }
+            setK(getK()-1);
         }
     }
 
-    public void MapReduceKNN(){
-
+    public static void setK(int val){
+        k=val;
         return;
     }
+
+    public static int getK(){
+        return k;
+    }
+
 
 
     public static void main( String[] args ) throws IOException, ClassNotFoundException, InterruptedException {
         //check that all arguments are there
-        if(args.length<3){
+        if(args.length<4){
             System.out.println("\n\nERROR: You are missing one or more arguments.");
-            System.out.println("<local file path> <point q>");
+            System.out.println("<local file path> <point q> <k>");
             System.out.println("Exiting");
             return;
         }
@@ -117,13 +127,16 @@ public class KNN
 
         Configuration conf = new Configuration();
         conf.set("q", args[2]);
+        setK(Integer.parseInt(args[3]));
         Job job = Job.getInstance(conf, "knn");
         job.setJarByClass(KNN.class);
         job.setMapperClass(KNNMapper.class);
         job.setCombinerClass(KNNReducer.class);
         job.setReducerClass(KNNReducer.class);
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(DoubleWritable.class);
+        job.setOutputKeyClass(DoubleWritable.class);
+        job.setOutputValueClass(Text.class);
+        job.setMapOutputKeyClass(DoubleWritable.class);
+        job.setMapOutputValueClass(Text.class);
         FileInputFormat.addInputPath(job, new Path("local_copy.csv"));
         FileOutputFormat.setOutputPath(job, new Path("KNN_output.txt"));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
