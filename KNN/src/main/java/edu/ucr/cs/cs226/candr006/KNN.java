@@ -8,10 +8,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.ftp.FTPFileSystem;
-import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -27,6 +24,7 @@ import org.apache.hadoop.io.compress.BZip2Codec;
 import org.codehaus.jettison.json.JSONException;
 import java.io.IOException;
 import static java.nio.file.Files.probeContentType;
+import static java.lang.Math.*;
 
 /**
  * KNN
@@ -36,9 +34,7 @@ import static java.nio.file.Files.probeContentType;
 public class KNN
 {
     public static class KNNMapper
-            extends Mapper<Object, Text, Text, IntWritable>{
-
-        private final static IntWritable one = new IntWritable(1);
+            extends Mapper<Object, Text, Text, DoubleWritable>{
         private Text word = new Text();
 
         public void map(Object key, Text value, Context context
@@ -46,20 +42,37 @@ public class KNN
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 word.set(itr.nextToken());
-                context.write(word, one);
+                String[] words =word.toString().split(",");
+                Text key2= new Text(words[1]+','+words[2]);
+
+
+                //calculate the distance between this point and q
+                Configuration conf = context.getConfiguration();
+                String q_string= conf.get("q");
+                String[] q=q_string.split(",");
+                double x1= Double.parseDouble(q[0]);
+                double y1= Double.parseDouble(q[1]);
+
+                double x2=Double.parseDouble(words[1]);
+                double y2=Double.parseDouble(words[2]);
+
+                double d=Math.sqrt(Math.pow((x2-x1),2)+Math.pow((y2-y1),2));
+                final DoubleWritable dist = new DoubleWritable(d);
+
+                context.write(key2, dist);
             }
         }
     }
 
     public static class KNNReducer
-            extends Reducer<Text,IntWritable,Text,IntWritable> {
-        private IntWritable result = new IntWritable();
+            extends Reducer<Text,IntWritable,Text,DoubleWritable> {
+        private DoubleWritable result = new DoubleWritable();
 
-        public void reduce(Text key, Iterable<IntWritable> values,
+        public void reduce(Text key, Iterable<DoubleWritable> values,
                            Context context
         ) throws IOException, InterruptedException {
             int sum = 0;
-            for (IntWritable val : values) {
+            for (DoubleWritable val : values) {
                 sum += val.get();
             }
             result.set(sum);
@@ -75,12 +88,12 @@ public class KNN
 
     public static void main( String[] args ) throws IOException, ClassNotFoundException, InterruptedException {
         //check that all arguments are there
-        /*if(args.length<3){
+        if(args.length<3){
             System.out.println("\n\nERROR: You are missing one or more arguments.");
-            System.out.println("<local file path> <hdfs path>");
+            System.out.println("<local file path> <point q>");
             System.out.println("Exiting");
             return;
-        }*/
+        }
         String str_local_file=args[1];
 
         //check if the local file exists
@@ -103,13 +116,14 @@ public class KNN
         inputStream4.close();
 
         Configuration conf = new Configuration();
+        conf.set("q", args[2]);
         Job job = Job.getInstance(conf, "knn");
         job.setJarByClass(KNN.class);
         job.setMapperClass(KNNMapper.class);
         job.setCombinerClass(KNNReducer.class);
         job.setReducerClass(KNNReducer.class);
         job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(IntWritable.class);
+        job.setOutputValueClass(DoubleWritable.class);
         FileInputFormat.addInputPath(job, new Path("local_copy.csv"));
         FileOutputFormat.setOutputPath(job, new Path("KNN_output.txt"));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
