@@ -1,42 +1,35 @@
 package edu.ucr.cs.cs226.candr006;
 import java.io.*;
-import java.nio.file.Paths;
-import java.util.Random;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Iterator;
 import java.util.StringTokenizer;
-import net.minidev.json.JSONObject;
+
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
-import org.apache.hadoop.fs.ftp.FTPFileSystem;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.ReduceContext;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
-import org.apache.commons.compress.compressors.CompressorInputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.compress.BZip2Codec;
-import org.codehaus.jettison.json.JSONException;
+
 import java.io.IOException;
-import static java.nio.file.Files.probeContentType;
-import static java.lang.Math.*;
+import java.util.TreeMap;
 
 /**
  * KNN
  *
  */
-
 public class KNN
 {
-    public static int k =0;
+    public static Integer k =100;
     public static class KNNMapper
             extends Mapper<Object, Text, DoubleWritable,Text>{
         private Text word = new Text();
+        private TreeMap<DoubleWritable, Text> KDistMap = new TreeMap<DoubleWritable, Text>() ;
 
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
@@ -60,37 +53,90 @@ public class KNN
                 double d=Math.sqrt(Math.pow((x2-x1),2)+Math.pow((y2-y1),2));
                 final DoubleWritable dist = new DoubleWritable(d);
 
-                context.write(dist,val);
+                //context.write(dist,val);
+                KDistMap.put(dist,val);
+
+                if (KDistMap.size() > getK()) {
+                    KDistMap.remove(KDistMap.firstKey());
+                }
             }
         }
+
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            for (DoubleWritable i : KDistMap.keySet()) {
+                context.write(i, KDistMap.get(i));
+            }
+        }
+
+
     }
 
     public static class KNNReducer
             extends Reducer<DoubleWritable,Text,DoubleWritable,Text> {
         private DoubleWritable result = new DoubleWritable();
+        public Integer k_iter= 0;
+        private TreeMap<DoubleWritable, Text> KDistMap = new TreeMap<DoubleWritable, Text>() ;
+
+        @Override
+        protected void setup(Context context) throws IOException, InterruptedException {
+            k_iter= 0;
+        }
 
         public void reduce(Text key, Iterable<DoubleWritable> values,
                            Context context
         ) throws IOException, InterruptedException {
-            int sum = 0;
+            /*int sum = 0;
 
             for (DoubleWritable val : values) {
                 sum += val.get();
             }
             result.set(sum);
-            if(getK()>=1) {
-                context.write(result, key);
+            context.write(result, key);*/
+
+            for (DoubleWritable i : values) {
+                KDistMap.put(i, KDistMap.get(i));
+                if (KDistMap.size() > getK()) {
+                    KDistMap.remove(KDistMap.firstKey()) ;
+                }
             }
-            setK(getK()-1);
         }
+
+        public void run(Context context) throws IOException, InterruptedException {
+            setup(context);
+           // Integer k_iter= getK();
+            try {
+                while (context.nextKey() && (k_iter<100)) {
+                    k_iter++;
+                    //setK(getK()-1);
+                    reduce(context.getCurrentKey(), context.getValues(), context);
+                    // If a back up store is used, reset it
+                    Iterator<Text> iter = context.getValues().iterator();
+                    if(iter instanceof ReduceContext.ValueIterator) {
+                        ((ReduceContext.ValueIterator<Text>)iter).resetBackupStore();
+                    }
+                }
+            } finally {
+                cleanup(context);
+            }
+        }
+
+        @Override
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            for (DoubleWritable i : KDistMap.keySet()) {
+                context.write(i, KDistMap.get(i));
+            }
+        }
+
     }
 
     public static void setK(int val){
         k=val;
+        System.out.println("setting k: "+k);
         return;
     }
 
     public static int getK(){
+        System.out.println("returning k: "+k);
         return k;
     }
 
@@ -125,10 +171,17 @@ public class KNN
         ostream4.close();
         inputStream4.close();
 
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MMddyyyyHHmmss");
+        LocalDateTime now = LocalDateTime.now();
+        String formatted = dtf.format(now);
+        String out_path="KNN_output_"+formatted+".txt";
+
         Configuration conf = new Configuration();
         conf.set("q", args[2]);
         setK(Integer.parseInt(args[3]));
+        conf.set("k",args[3]);
         Job job = Job.getInstance(conf, "knn");
+        job.setNumReduceTasks(1);
         job.setJarByClass(KNN.class);
         job.setMapperClass(KNNMapper.class);
         job.setCombinerClass(KNNReducer.class);
@@ -138,7 +191,8 @@ public class KNN
         job.setOutputKeyClass(DoubleWritable.class);
         job.setOutputValueClass(Text.class);
         FileInputFormat.addInputPath(job, new Path("local_copy.csv"));
-        FileOutputFormat.setOutputPath(job, new Path("KNN_output.txt"));
+
+        FileOutputFormat.setOutputPath(job, new Path(out_path));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
