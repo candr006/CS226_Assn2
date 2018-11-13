@@ -25,7 +25,7 @@ import java.util.TreeMap;
  */
 public class KNN
 {
-    public static Integer k =100;
+    public static Integer k =5;
     public static class KNNMapper
             extends Mapper<Object, Text, DoubleWritable,Text>{
         private Text word = new Text();
@@ -95,7 +95,7 @@ public class KNN
 
             for (DoubleWritable i : values) {
                 KDistMap.put(i, KDistMap.get(i));
-                if (KDistMap.size() > getK()) {
+                if (KDistMap.size() > k) {
                     KDistMap.remove(KDistMap.firstKey()) ;
                 }
             }
@@ -105,7 +105,7 @@ public class KNN
             setup(context);
            // Integer k_iter= getK();
             try {
-                while (context.nextKey() && (k_iter<100)) {
+                while (context.nextKey() && (k_iter<k)) {
                     k_iter++;
                     //setK(getK()-1);
                     reduce(context.getCurrentKey(), context.getValues(), context);
@@ -178,7 +178,7 @@ public class KNN
 
         Configuration conf = new Configuration();
         conf.set("q", args[2]);
-        setK(Integer.parseInt(args[3]));
+        k=Integer.parseInt(args[3]);
         conf.set("k",args[3]);
         Job job = Job.getInstance(conf, "knn");
         job.setNumReduceTasks(1);
