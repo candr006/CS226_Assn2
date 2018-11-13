@@ -53,12 +53,13 @@ public class KNN
                 double d=Math.sqrt(Math.pow((x2-x1),2)+Math.pow((y2-y1),2));
                 final DoubleWritable dist = new DoubleWritable(d);
 
-                //context.write(dist,val);
-                KDistMap.put(dist,val);
+                context.write(dist,val);
 
-                if (KDistMap.size() > getK()) {
-                    KDistMap.remove(KDistMap.firstKey());
-                }
+
+                /*if (KDistMap.size() < getK()) {
+                    KDistMap.put(dist,val);
+                   // KDistMap.remove(KDistMap.firstKey());
+                }*/
             }
         }
 
@@ -94,9 +95,11 @@ public class KNN
             context.write(result, key);*/
 
             for (DoubleWritable i : values) {
-                KDistMap.put(i, KDistMap.get(i));
-                if (KDistMap.size() > k) {
-                    KDistMap.remove(KDistMap.firstKey()) ;
+
+                if (KDistMap.size() < k) {
+                    KDistMap.put(i, KDistMap.get(i));
+
+                   // KDistMap.remove(KDistMap.firstKey()) ;
                 }
             }
         }
