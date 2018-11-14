@@ -25,7 +25,7 @@ import java.util.TreeMap;
  */
 public class KNN
 {
-    public static Integer k =5;
+
     public static class KNNMapper
             extends Mapper<Object, Text, DoubleWritable,Text>{
         private Text word = new Text();
@@ -55,11 +55,6 @@ public class KNN
 
                 context.write(dist,val);
 
-
-                /*if (KDistMap.size() < getK()) {
-                    KDistMap.put(dist,val);
-                   // KDistMap.remove(KDistMap.firstKey());
-                }*/
             }
         }
 
@@ -76,37 +71,31 @@ public class KNN
             extends Reducer<DoubleWritable,Text,DoubleWritable,Text> {
         private DoubleWritable result = new DoubleWritable();
         public Integer k_iter= 0;
+        public static Integer k;
         private TreeMap<DoubleWritable, Text> KDistMap = new TreeMap<DoubleWritable, Text>() ;
 
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
+            Configuration conf = context.getConfiguration();
+            k = Integer.valueOf(conf.get("k"));
             k_iter= 0;
         }
 
         public void reduce(Text key, Iterable<DoubleWritable> values,
                            Context context
         ) throws IOException, InterruptedException {
-            /*int sum = 0;
-
-            for (DoubleWritable val : values) {
-                sum += val.get();
-            }
-            result.set(sum);
-            context.write(result, key);*/
 
             for (DoubleWritable i : values) {
 
                 if (KDistMap.size() < k) {
                     KDistMap.put(i, KDistMap.get(i));
 
-                   // KDistMap.remove(KDistMap.firstKey()) ;
                 }
             }
         }
 
         public void run(Context context) throws IOException, InterruptedException {
             setup(context);
-           // Integer k_iter= getK();
             try {
                 while (context.nextKey() && (k_iter<k)) {
                     k_iter++;
@@ -131,18 +120,6 @@ public class KNN
         }
 
     }
-
-    public static void setK(int val){
-        k=val;
-        System.out.println("setting k: "+k);
-        return;
-    }
-
-    public static int getK(){
-        System.out.println("returning k: "+k);
-        return k;
-    }
-
 
 
     public static void main( String[] args ) throws IOException, ClassNotFoundException, InterruptedException {
@@ -181,7 +158,6 @@ public class KNN
 
         Configuration conf = new Configuration();
         conf.set("q", args[2]);
-        k=Integer.parseInt(args[3]);
         conf.set("k",args[3]);
         Job job = Job.getInstance(conf, "knn");
         job.setNumReduceTasks(1);
