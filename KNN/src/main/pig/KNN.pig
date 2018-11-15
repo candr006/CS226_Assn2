@@ -7,4 +7,12 @@ d= FOREACH points {
 	GENERATE dist,x,y;
 };
 
-dump d;
+d_group= group d by ($0,$1,$2);
+d_reduced= FOREACH d_group {
+	 unique = LIMIT d 1;
+     GENERATE FLATTEN(unique);
+};
+d_sorted= order d_reduced by ($0);
+
+
+dump d_sorted;
