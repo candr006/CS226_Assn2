@@ -99,9 +99,7 @@ public class KNN
             try {
                 while (context.nextKey() && (k_iter<k)) {
                     k_iter++;
-                    //setK(getK()-1);
                     reduce(context.getCurrentKey(), context.getValues(), context);
-                    // If a back up store is used, reset it
                     Iterator<Text> iter = context.getValues().iterator();
                     if(iter instanceof ReduceContext.ValueIterator) {
                         ((ReduceContext.ValueIterator<Text>)iter).resetBackupStore();
